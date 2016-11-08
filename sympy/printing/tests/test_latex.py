@@ -16,13 +16,16 @@ from sympy import (
     elliptic_e, elliptic_pi, cos, tan, Wild, true, false, Equivalent, Not,
     Contains, divisor_sigma, SymmetricDifference, SeqPer, SeqFormula,
     SeqAdd, SeqMul, fourier_series, pi, ConditionSet, ComplexRegion, fps,
-    AccumBounds, reduced_totient, primenu, primeomega, SingularityFunction)
+    AccumBounds, reduced_totient, primenu, primeomega, SingularityFunction, UnevaluatedExpr)
 
 
 from sympy.ntheory.factor_ import udivisor_sigma
 
 from sympy.abc import mu, tau
 from sympy.printing.latex import latex, translate
+from sympy.tensor.array import (ImmutableDenseNDimArray, ImmutableSparseNDimArray,
+                                MutableSparseNDimArray, MutableDenseNDimArray)
+from sympy.tensor.array import tensorproduct
 from sympy.utilities.pytest import XFAIL, raises
 from sympy.functions import DiracDelta, Heaviside, KroneckerDelta, LeviCivita
 from sympy.logic import Implies
@@ -138,11 +141,12 @@ def test_latex_builtins():
 
 
 def test_latex_SingularityFunction():
-    assert latex(SingularityFunction(x, 4, 5)) == r"{\langle x - 4 \rangle}^ 5"
-    assert latex(SingularityFunction(x, -3, 4)) == r"{\langle x + 3 \rangle}^ 4"
-    assert latex(SingularityFunction(x, 0, 4)) == r"{\langle x \rangle}^ 4"
-    assert latex(SingularityFunction(x, a, n)) == r"{\langle - a + x \rangle}^ n"
-
+    assert latex(SingularityFunction(x, 4, 5)) == r"{\langle x - 4 \rangle}^{5}"
+    assert latex(SingularityFunction(x, -3, 4)) == r"{\langle x + 3 \rangle}^{4}"
+    assert latex(SingularityFunction(x, 0, 4)) == r"{\langle x \rangle}^{4}"
+    assert latex(SingularityFunction(x, a, n)) == r"{\langle - a + x \rangle}^{n}"
+    assert latex(SingularityFunction(x, 4, -2)) == r"{\langle x - 4 \rangle}^{-2}"
+    assert latex(SingularityFunction(x, 4, -1)) == r"{\langle x - 4 \rangle}^{-1}"
 
 def test_latex_cycle():
     assert latex(Cycle(1, 2, 4)) == r"\left( 1\; 2\; 4\right)"
@@ -896,6 +900,40 @@ def test_latex_matrix_with_functions():
     assert latex(M) == expected
 
 
+def test_latex_NDimArray():
+    x, y, z, w = symbols("x y z w")
+
+    for ArrayType in (ImmutableDenseNDimArray, ImmutableSparseNDimArray, MutableDenseNDimArray, MutableSparseNDimArray):
+        M = ArrayType([[1 / x, y], [z, w]])
+        M1 = ArrayType([1 / x, y, z])
+
+        M2 = tensorproduct(M1, M)
+        M3 = tensorproduct(M, M)
+
+        assert latex(M) == '\\left[\\begin{matrix}\\frac{1}{x} & y\\\\z & w\\end{matrix}\\right]'
+        assert latex(M1) == "\\left[\\begin{matrix}\\frac{1}{x} & y & z\\end{matrix}\\right]"
+        assert latex(M2) == r"\left[\begin{matrix}" \
+                            r"\left[\begin{matrix}\frac{1}{x^{2}} & \frac{y}{x}\\\frac{z}{x} & \frac{w}{x}\end{matrix}\right] & " \
+                            r"\left[\begin{matrix}\frac{y}{x} & y^{2}\\y z & w y\end{matrix}\right] & " \
+                            r"\left[\begin{matrix}\frac{z}{x} & y z\\z^{2} & w z\end{matrix}\right]" \
+                            r"\end{matrix}\right]"
+        assert latex(M3) == r"""\left[\begin{matrix}"""\
+                r"""\left[\begin{matrix}\frac{1}{x^{2}} & \frac{y}{x}\\\frac{z}{x} & \frac{w}{x}\end{matrix}\right] & """\
+                r"""\left[\begin{matrix}\frac{y}{x} & y^{2}\\y z & w y\end{matrix}\right]\\"""\
+                r"""\left[\begin{matrix}\frac{z}{x} & y z\\z^{2} & w z\end{matrix}\right] & """\
+                r"""\left[\begin{matrix}\frac{w}{x} & w y\\w z & w^{2}\end{matrix}\right]"""\
+                r"""\end{matrix}\right]"""
+        assert latex(ArrayType()) == r"\left[\begin{matrix}\end{matrix}\right]"
+
+        Mrow = ArrayType([[x, y, 1/z]])
+        Mcolumn = ArrayType([[x], [y], [1/z]])
+        Mcol2 = ArrayType([Mcolumn.tolist()])
+
+        assert latex(Mrow) == r"\left[\left[\begin{matrix}x & y & \frac{1}{z}\end{matrix}\right]\right]"
+        assert latex(Mcolumn) == r"\left[\begin{matrix}x\\y\\\frac{1}{z}\end{matrix}\right]"
+        assert latex(Mcol2) == r'\left[\begin{matrix}\left[\begin{matrix}x\\y\\\frac{1}{z}\end{matrix}\right]\end{matrix}\right]'
+
+
 def test_latex_mul_symbol():
     assert latex(4*4**x, mul_symbol='times') == "4 \\times 4^{x}"
     assert latex(4*4**x, mul_symbol='dot') == "4 \\cdot 4^{x}"
@@ -1539,3 +1577,12 @@ def test_issue_10489():
     s = Symbol(latexSymbolWithBrace)
     assert latex(s) == latexSymbolWithBrace
     assert latex(cos(s)) == r'\cos{\left (C_{x_{0}} \right )}'
+
+
+def test_latex_UnevaluatedExpr():
+    x = symbols("x")
+    he = UnevaluatedExpr(1/x)
+    assert latex(he) == latex(1/x) == r"\frac{1}{x}"
+    assert latex(he**2) == r"\left(\frac{1}{x}\right)^{2}"
+    assert latex(he + 1) == r"1 + \frac{1}{x}"
+    assert latex(x*he) == r"x \frac{1}{x}"
