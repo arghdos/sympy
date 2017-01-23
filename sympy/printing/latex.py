@@ -39,18 +39,29 @@ accepted_latex_functions = ['arcsin', 'arccos', 'arctan', 'sin', 'cos', 'tan',
 tex_greek_dictionary = {
     'Alpha': 'A',
     'Beta': 'B',
+    'Gamma': r'\Gamma',
+    'Delta': r'\Delta',
     'Epsilon': 'E',
     'Zeta': 'Z',
     'Eta': 'H',
+    'Theta': r'\Theta',
     'Iota': 'I',
     'Kappa': 'K',
+    'Lambda': r'\Lambda',
     'Mu': 'M',
     'Nu': 'N',
+    'Xi': r'\Xi',
     'omicron': 'o',
     'Omicron': 'O',
+    'Pi': r'\Pi',
     'Rho': 'P',
+    'Sigma': r'\Sigma',
     'Tau': 'T',
+    'Upsilon': r'\Upsilon',
+    'Phi': r'\Phi',
     'Chi': 'X',
+    'Psi': r'\Psi',
+    'Omega': r'\Omega',
     'lamda': r'\lambda',
     'Lamda': r'\Lambda',
     'khi': r'\chi',
@@ -224,10 +235,12 @@ class LatexPrinter(Printer):
         elif expr.is_Mul:
             if not first and _coeff_isneg(expr):
                 return True
+        if expr.is_Piecewise:
+            return True
         if any([expr.has(x) for x in (Mod,)]):
             return True
         if (not last and
-            any([expr.has(x) for x in (Integral, Piecewise, Product, Sum)])):
+            any([expr.has(x) for x in (Integral, Product, Sum)])):
             return True
 
         return False
@@ -295,7 +308,7 @@ class LatexPrinter(Printer):
 
     def _print_Cycle(self, expr):
         from sympy.combinatorics.permutations import Permutation
-        if str(expr) == '()':
+        if expr.size == 0:
             return r"\left( \right)"
         expr = Permutation(expr)
         expr_perm = expr.cyclic_form
@@ -2001,7 +2014,9 @@ def translate(s):
     tex = tex_greek_dictionary.get(s)
     if tex:
         return tex
-    elif s.lower() in greek_letters_set or s in other_symbols:
+    elif s.lower() in greek_letters_set:
+        return "\\" + s.lower()
+    elif s in other_symbols:
         return "\\" + s
     else:
         # Process modifiers, if any, and recurse
